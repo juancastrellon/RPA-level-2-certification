@@ -1,0 +1,161 @@
+*** Settings ***
+Documentation       Orders robots from RobotSpareBin Industries Inc.
+...                 Save the order HTML receipt as a PDF fle.
+...                 Saves the screenshot of the ordered robot.
+...                 Embeds the screenshot of the robot to the PDF receipt.
+...                 Create ZIP archive of the receipts and the images.
+
+Library             RPA.Browser.Selenium    auto_close=${false}
+Library             RPA.HTTP
+Library             RPA.Tables
+Library             RPA.Archive
+Library             Collections
+Library             RPA.Excel.Files
+Library             RPA.RobotLogListener
+Library             RPA.PDF
+Library             RPA.Dialogs
+Library             RPA.Robocorp.Vault
+Library             OperatingSystem
+Library             RPA.Desktop
+
+
+*** Variables ***
+${URL}              https://robotsparebinindustries.com/#/robot-order
+${CSV_URL}          https://robotsparebinindustries.com/orders.csv
+
+${imagefolder}      ${OUTPUT_DIR}${/}image_files
+${pdffolder}        ${OUTPUT_DIR}${/}pdf_files
+${zip_file}         ${OUTPUT_DIR}${/}pdf_archive.zip
+
+
+*** Tasks ***
+Create new directories
+    New directories
+
+Order robots from RobotSpareBin Industries Inc.
+    Open the robot order web site
+
+Download file to complete orders
+    Download csv file
+
+Read orders from excel file and add to website
+    Fill the order using the data from the csv file
+
+Preview robot
+    Preview the robot
+
+Order robot
+    Submit the order
+
+Export receipt as a pdf
+    Export receipt as a PDF
+
+Order another robot
+    Goto order another robot
+
+Zip files
+    Create a Zip file of the receipts
+
+Delete files
+    Delete original images
+
+Close Browser
+    log out and Close Browser
+
+
+*** Keywords ***
+New directories
+    Create Directory    ${imagefolder}
+    Create Directory    ${pdffolder}
+
+Open the robot order web site
+    Open Available Browser    ${URL}
+    Maximize Browser Window
+    Wait Until Page Contains Element    //*[@id="root"]/div/div[2]/div/div/div/div/div/button[1]
+    Click Button    OK
+
+Close the annoying modal
+    Set Local Variable    ${btn_ok}    //*[@id="root"]/div/div[2]/div/div/div/div/div/button[1]
+    Wait Until Element Is Visible    ${btn_ok}
+    Click Button    ${btn_ok}
+
+Download csv file
+    Download    ${CSV_URL}    overwrite=${True}
+    ${orders}=    Read table from CSV    orders.csv    header=True
+    RETURN    ${orders}
+
+Fill the order using the data from the csv file
+    ${orders}=    Download csv file
+
+    FOR    ${order}    IN    @{orders}
+        Fill and submit orders for every order    ${order}
+        Wait Until Keyword Succeeds    10x    2    Preview the robot
+        Wait Until Keyword Succeeds    10x    2    Submit the order
+        Export receipt as a PDF
+        Goto order another robot
+    END
+    [Teardown]    Log out and close Browser
+
+Fill and submit orders for every order
+    [Arguments]    ${order}
+    Select From List By Index    head    ${order}[Head]
+    Select Radio Button    body    ${order}[Body]
+    Input Text    xpath://html/body/div/div/div[1]/div/div[1]/form/div[3]/input    ${order}[Legs]
+    Input Text    address    ${order}[Address]
+
+Preview the robot
+    Set Local Variable    ${btn_preview}    //*[@id="preview"]
+    Set Local Variable    ${img_preview}    xpath://html/body/div/div/div[1]/div/div[2]/div[2]/div
+    Click Button    ${btn_preview}
+    Wait Until page contains Element    ${img_preview}
+
+Submit the order
+    Set Local Variable    ${btn_order}    //*[@id="order"]
+    #Set Local Variable    ${lbl_receipt}    //*[@id="receipt"]
+    Set Local Variable    ${lbl_receipt}    xpath://html/body/div/div/div[1]/div/div[1]/div/div
+
+    Mute Run On Failure    Page Should Contain Element
+
+    Click button    ${btn_order}
+    Page Should Contain Element    ${lbl_receipt}
+
+Export receipt as a PDF
+    #Wait Until Element Is Visible    id:receipt
+    Wait Until Element Is Visible    xpath://html/body/div/div/div[1]/div/div[1]/div/div
+    #Wait Until Page Contains Element    lxpath://html/body/div/div/div[1]/div/div[1]/div/divocator
+    ${orderid}=    Get Text    //*[@id="receipt"]/p[1]
+    #${receipt_html}=    Get Element Attribute    id:receipt    outerHTML
+    ${receipt_html}=    Get Element Attribute    xpath://html/body/div/div/div[1]/div/div[1]/div/div    outerHTML
+    Set Local Variable    ${receipt_filename}    ${pdffolder}${/}${orderid}.pdf
+    Html To Pdf    content=${receipt_html}    output_path=${receipt_filename}
+
+    Set Local Variable    ${order_id}    xpath://html/body/div/div/div[1]/div/div[1]/div/div/div[1]
+    Set Local Variable    ${image}    //*[@id="robot-preview-image"]
+    Set Local Variable    ${image_file}    ${imagefolder}${/}${orderid}.png
+    Sleep    1sec
+    Screenshot    ${image}    ${image_file}
+    Embed the robot screenshot to the receipt PDF file    ${receipt_filename}    ${image_file}
+
+Embed the robot screenshot to the receipt PDF file
+    [Arguments]    ${receipt_filename}    ${image_file}
+    Open Pdf    ${receipt_filename}
+    @{list}=    Create List    ${receipt_filename}    ${image_file}:x=0,y=0
+    Add Files To Pdf    ${list}    ${receipt_filename}    ${False}
+    Close Pdf    ${receipt_filename}
+
+Goto order another robot
+    #Wait Until Element Is Enabled    //*[@id="order-another"]
+    Wait Until Element Is Enabled    xpath://html/body/div/div/div[1]/div/div[1]/div/button
+    Wait and Click Button    order-another
+    Close the annoying modal
+
+Create a Zip file of the receipts
+    Archive Folder With Zip    ${pdffolder}    ${zip_file}    recursive=True    include=*.pdf
+
+Delete original images
+    Empty Directory    ${imagefolder}
+    Empty Directory    ${pdffolder}
+
+Log out and close Browser
+    Close Browser
+
