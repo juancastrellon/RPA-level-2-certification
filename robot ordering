@@ -111,7 +111,6 @@ Preview the robot
 
 Submit the order
     Set Local Variable    ${btn_order}    //*[@id="order"]
-    #Set Local Variable    ${lbl_receipt}    //*[@id="receipt"]
     Set Local Variable    ${lbl_receipt}    xpath://html/body/div/div/div[1]/div/div[1]/div/div
 
     Mute Run On Failure    Page Should Contain Element
@@ -120,11 +119,8 @@ Submit the order
     Page Should Contain Element    ${lbl_receipt}
 
 Export receipt as a PDF
-    #Wait Until Element Is Visible    id:receipt
     Wait Until Element Is Visible    xpath://html/body/div/div/div[1]/div/div[1]/div/div
-    #Wait Until Page Contains Element    lxpath://html/body/div/div/div[1]/div/div[1]/div/divocator
     ${orderid}=    Get Text    //*[@id="receipt"]/p[1]
-    #${receipt_html}=    Get Element Attribute    id:receipt    outerHTML
     ${receipt_html}=    Get Element Attribute    xpath://html/body/div/div/div[1]/div/div[1]/div/div    outerHTML
     Set Local Variable    ${receipt_filename}    ${pdffolder}${/}${orderid}.pdf
     Html To Pdf    content=${receipt_html}    output_path=${receipt_filename}
@@ -144,7 +140,6 @@ Embed the robot screenshot to the receipt PDF file
     Close Pdf    ${receipt_filename}
 
 Goto order another robot
-    #Wait Until Element Is Enabled    //*[@id="order-another"]
     Wait Until Element Is Enabled    xpath://html/body/div/div/div[1]/div/div[1]/div/button
     Wait and Click Button    order-another
     Close the annoying modal
